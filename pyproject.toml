@@ -25,14 +25,17 @@ filelock = { version = "*" }
 google-api-core = { version = "<3.0.0", optional = true }
 google-generativeai = { version = ">=0.8.2" }
 libcloudforensics = "^20240325"
+lief = { version = ">= 0.15.1", optional = true }
 opensearch-py = {version = "2.4.2"}
 pandas = { version = "^2.1.0" }
 plaso = { version = "20240308", optional = true }
+pyssdeep = { version = "1.0.0", optional = true }
 prometheus_client = { version = "^0.17.1" }
 protobuf = { version = ">=3.19.0", optional = true }
 pydantic = { version = "^1.10.5,<2"}
 pyglove = { version = ">=0.4.4" }
 pyhindsight = { version = "^20230327.0", optional = true }
+py-tlsh = { version = ">= 4.7.2", optional = true }
 ratelimit = { version = ">=2.2.1" }
 redis = { version = "^4.4.4" }
 urllib3 = [
@@ -60,8 +63,11 @@ yapf = "*"
 worker = [
   "dfimagetools",
   "dfDewey",
+  "lief",
   "plaso",
+  "pyssdeep",
   "pyhindsight",
+  "py-tlsh",
 ]
 
 [tool.yapfignore]

@@ -42,6 +42,7 @@ class TaskLoader():
       'ContainerdEnumerationTask',
       'DfdeweyTask',
       'DockerContainersEnumerationTask',
+      'ElfAnalysisTask',
       'FileArtifactExtractionTask',
       'FileSystemTimelineTask',
       'FinalizeRequestTask',
@@ -100,6 +101,7 @@ class TaskLoader():
     #
     # Late imports to minimize what loads all Tasks
     from turbinia.workers.abort import AbortTask
+    from turbinia.workers.analysis.elf import ElfAnalysisTask
     from turbinia.workers.analysis.jenkins import JenkinsAnalysisTask
     from turbinia.workers.analysis.jupyter import JupyterAnalysisTask
     from turbinia.workers.analysis.linux_acct import LinuxAccountAnalysisTask
