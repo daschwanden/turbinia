@@ -15,13 +15,6 @@ from turbinia.workers import Priority
 from turbinia.workers import TurbiniaTask
 
 
-class Architecture(object):
-
-  def __init__(self):
-    self.x86_64 = False
-    self.arm64 = False
-
-
 class Hashes(object):
 
   def __init__(self):
@@ -29,114 +22,40 @@ class Hashes(object):
     self.md5 = ""
     self.ssdeep = ""
     self.tlsh = ""
-    self.symhash = ""
 
 
-class Section(object):
-
-  def __init__(self, flags: List[str]):
-    self.name = ""
-    self.entropy = 0
-    self.address = ""
-    self.size = ""
-    self.offset = ""
-    self.section_type = ""
-    self.flags = flags
-
-
-class Segment(object):
-
-  def __init__(self, sections: List[Section]):
-    self.name = ""
-    self.offset = ""
-    self.size = ""
-    self.vaddr = ""
-    self.vsize = ""
-    self.sections = sections
-
-
-class Import(object):
+class ParsedHeader(object):
 
   def __init__(self):
-    self.name = ""
-    self.size = ""
-    self.offset = ""
-
-
-class ParsedBinary(object):
-
-  def __init__(
-      self, hashes: Hashes, segments: List[Segment], symbols: List[str],
-      imports: List[Import], flags: List[str]):
-    self.entropy = 0
-    self.size = 0
-    self.fat_offset = 0
-    self.magic = ""
-    self.flags = flags
-    self.hashes = hashes
-    self.segments = segments
-    self.symbols = symbols
-    self.imports = imports
-
-
-class Export(object):
-
-  def __init__(self):
-    self.name = ""
-    self.offset = ""
-
-
-class ParsedFatBinary(object):
-
-  def __init__(self, hashes: Hashes):
-    self.size = 0
-    self.entropy = 0
-    self.hashes = hashes
-
-
-class SignerInfo(object):
-
-  def __init__(self):
-    self.organization_name = ""
-    self.organizational_unit_name = ""
-    self.common_name = ""
-    self.signing_time = ""
-    self.cd_hash = ""
-    self.message_digest = ""
-
-
-class Signature(object):
-
-  def __init__(self, signer_infos: List[SignerInfo]):
-    self.signer_infos = signer_infos
-    self.identifier = ""
-    self.team_identifier = "not set"
-    self.size = 0
-    self.hash_type = ""
-    self.hash_size = 0
-    self.platform_identifier = 0
-    self.pagesize = 0
-    self.cd_hash_calculated = ""
+    self.entrypoint = 0
+    self.file_type = ""
+    self.header_size = 0
+    self.identity_abi_version = 0
+    self.identity_class = ""
+    self.identity_data = ""
+    self.identity_os_abi = ""
+    self.identity_version = ""
+    self.numberof_sections = 0
+    self.numberof_segments = 0
+    self.machine_type = ""
+    self.object_file_version = ""
+    self.processor_flags = ""
+    self.program_header_offset = 0
+    self.program_header_size = 0
+    self.section_header_offset = 0
+    self.section_header_size = 0
 
 
 class ParsedElf(object):
 
-  def __init__(
-      self, signature: Signature, architecture: Architecture,
-      exports: List[Export], fat_binary: ParsedFatBinary, arm64: ParsedBinary,
-      x86_64: ParsedBinary):
+  def __init__(self, hashes: Hashes, header: ParsedHeader):
     self.request = ""
     self.evidence = ""
-    self.source_path = ""
-    self.source_type = ""
+    self.file_name = ""
     self.processing_time = 0
-    self.signature = signature
-    self.architecture = architecture
-    self.exports = exports
-    self.fat_binary = fat_binary
-    self.arm64 = arm64
-    self.x86_64 = x86_64
-
+    self.size = 0
+    self.hashes = hashes
+    self.header = header
 
 class ElfAnalysisTask(TurbiniaTask):
   """Task to analyse ELF Information"""
@@ -175,74 +94,66 @@ class ElfAnalysisTask(TurbiniaTask):
     hasher.Update(data)
     return hasher.GetStringDigest()
 
-  def _GetSymhash(self, binary):
-    """Calculates Mach-O SymHash.
-       https://www.anomali.com/fr/blog/symhash
-    Args:
-      binary (lief.ELF.Binary): binary to be parsed.
-    Returns:
-      symhash (str): symhash of the binary.
-    """
-    symbol_list = []
-    for symbol in binary.imported_symbols:
-      n_type = symbol.raw_type
-      is_stab = n_type & self._N_STAB != 0
-      is_external = n_type & self._N_EXT == self._N_EXT
-      is_ntype = n_type & self._N_TYPE != 0
-      if symbol.origin == self._lief._lief.MachO.Symbol.ORIGIN.LC_SYMTAB and not is_stab and is_external and not is_ntype:
-        symbol_list.append(symbol.demangled_name)
-    hasher = self._md5.MD5Hasher()
-    hasher.Update(','.join(sorted(symbol_list)).encode())
-    symhash = hasher.GetStringDigest()
-    return symhash
-
-  def _ParseElfBinary(self, elf_fd, evidence, binary, result, file_name):
+  def _GetHashes(self, elf_fd, binary):
     """Parses a ELF binary.
     Args:
       elf_fd (int): file descriptor to the binary.
-      evidence (Evidence object):  The evidence to process
-      binary (lief.MachO.Binary): binary to be parsed.
-      result (TurbiniaTaskResult): The object to place task results into.
-      filename (str): file name of the binary.
+      binary (lief.ELF.Binary): binary to compute the hashes on.
     Returns:
-      ParsedBinary: the parsed binary details.
+      Hashes: the computed hashes.
     """
-    offset = 0
     binary_size = binary.virtual_size
-    elf_fd.seek(offset)
+    elf_fd.seek(0)
     data = elf_fd.read(binary_size)
     hashes = Hashes()
     hashes.md5 = self._GetDigest(self._md5.MD5Hasher(), data)
     hashes.sha256 = self._GetDigest(self._sha256.SHA256Hasher(), data)
-    #hashes.symhash = self._GetSymhash(binary)
     hashes.tlsh = self._tlsh.hash(data)
     hashes.ssdeep = self._pyssdeep.get_hash_buffer(data)
-    parsed_binary = ParsedBinary(
-        hashes=hashes, segments=None, symbols=None, imports=None, flags=None)
-    parsed_binary.entropy = self._GetDigest(self._entropy.EntropyHasher(), data)
-    parsed_binary.size = binary_size
-    #parsed_binary.fat_offset = fat_offset
-    #parsed_binary.magic = hex(binary.header.magic.value)
-    #parsed_binary.segments = self._GetSegments(binary)
-    #parsed_binary.symbols = self._GetSymbols(binary)
-    #flags = []
-    #for flag in binary.header.flags_list:
-    #  flags.append(str(flag).split(".")[-1])
-    #parsed_binary.flags = flags
-    #imports = []
-    #for lib in binary.libraries:
-    #  imp = Import()
-    #  imp.name = lib.name
-    #  imp.size = hex(lib.size)
-    #  imp.offset = hex(lib.command_offset)
-    #  imports.append(imp)
-    #parsed_binary.imports = imports
+    return hashes
 
-    #if binary.has_code_signature:
-    #  parsed_binary.signature = self._ParseCodeSignature(
-    #      binary.code_signature, result)
-    #result.log(f'ParsedBinary: {parsed_binary}')
-    return parsed_binary
+  def _ParseHeader(self, header):
+    """Parses a ELF binary.
+    Args:
+      header (lief.ELF.Binary.Header): header to be parsed.
+    Returns:
+      ParsedHeader: the parsed header details.
+    """
+    parsed_header = ParsedHeader()
+    eflags_str = ""
+    if header.machine_type == self._lief.ELF.ARCH.ARM:
+        eflags_str = " - ".join([str(s).split(".")[-1] for s in header.arm_flags_list])
+
+    if header.machine_type in [self._lief.ELF.ARCH.MIPS, self._lief.ELF.ARCH.MIPS_RS3_LE, self._lief.ELF.ARCH.MIPS_X]:
+        eflags_str = " - ".join([str(s).split(".")[-1] for s in header.mips_flags_list])
+
+    if header.machine_type == self._lief.ELF.ARCH.PPC64:
+        eflags_str = " - ".join([str(s).split(".")[-1] for s in header.ppc64_flags_list])
+
+    if header.machine_type == self._lief.ELF.ARCH.HEXAGON:
+        eflags_str = " - ".join([str(s).split(".")[-1] for s in header.hexagon_flags_list])
+
+    if header.machine_type == self._lief.ELF.ARCH.LOONGARCH:
+        eflags_str = " - ".join([str(s).split(".")[-1] for s in header.loongarch_flags_list])
+
+    parsed_header.entrypoint = header.entrypoint
+    parsed_header.file_type = str(header.file_type).split(".")[-1]
+    parsed_header.header_size = header.header_size
+    parsed_header.identity_abi_version = header.identity_abi_version
+    parsed_header.identity_class = str(header.identity_class).split(".")[-1]
+    parsed_header.identity_data = str(header.identity_data).split(".")[-1]
+    parsed_header.identity_os_abi = str(header.identity_os_abi).split(".")[-1]
+    parsed_header.identity_version = str(header.identity_version).split(".")[-1]
+    parsed_header.numberof_sections = header.numberof_sections
+    parsed_header.numberof_segments = header.numberof_segments
+    parsed_header.machine_type = str(header.machine_type).split(".")[-1]
+    parsed_header.object_file_version = str(header.object_file_version).split(".")[-1]
+    parsed_header.processor_flags = str(header.processor_flag) + eflags_str
+    parsed_header.program_header_offset = header.program_header_offset
+    parsed_header.program_header_size = header.program_header_size
+    parsed_header.section_header_offset = header.section_header_offset
+    parsed_header.section_header_size = header.section_header_size
+    return parsed_header
 
   def _WriteParsedElfResults(self, file_name, parsed_elf, base_dir):
     """Outputs the parsed ELF results.
@@ -300,19 +211,13 @@ class ElfAnalysisTask(TurbiniaTask):
           break
 
         if isinstance(elf_binary, self._lief.ELF.Binary):
-          architecture = Architecture()
-          parsed_elf = ParsedElf(
-              signature=None, architecture=None, exports=None, fat_binary=None,
-              arm64=None, x86_64=None)
-          parsed_elf.evidence = evidence.id
-          parsed_elf.request = evidence.request_id
-          parsed_elf.source_path = file
-          parsed_elf.source_type = "file"
           parsed_binaries += 1
-          parsed_binary = self._ParseElfBinary(
-                elf_fd, evidence, elf_binary, result, file)
-          parsed_elf.x86_64 = parsed_binary
-          parsed_elf.architecture = architecture
+          hashes = self._GetHashes(elf_fd, elf_binary)
+          header = self._ParseHeader(elf_binary.header)
+          parsed_elf = ParsedElf(hashes, header)
+          parsed_elf.evidence = evidence.id
+          parsed_elf.file_name = file
+          parsed_elf.request = evidence.request_id
           parsed_elf.processing_time = self._CurrentTimeMillis() - start_time
           self._WriteParsedElfResults(file, parsed_elf, base_dir)
         else:
@@ -325,7 +230,7 @@ class ElfAnalysisTask(TurbiniaTask):
     result.report_data = summary
     result.report_priority = Priority.LOW
 
-    # Write the Mach-O Info to the output file.
+    # Write the ELF Info to the output file.
     with open(output_file_path, 'wb') as fh:
       fh.write(output_evidence.text_data.encode('utf8'))
       fh.write('\n'.encode('utf8'))
