@@ -164,6 +164,86 @@ class ElfAnalysisTask(TurbiniaTask):
         message = f'Could not import libraries: {exception!s}'
         raise TurbiniaException(message)
 
+  def _GetDigest(self, hasher, data):
+    """Executes a hasher and returns the digest.
+    Args:
+      hasher (BaseHasher): hasher to execute.
+      data (bytestring) : data to be hashed.
+     Returns:
+      digest (str): digest returned by hasher.
+    """
+    hasher.Update(data)
+    return hasher.GetStringDigest()
+
+  def _GetSymhash(self, binary):
+    """Calculates Mach-O SymHash.
+       https://www.anomali.com/fr/blog/symhash
+    Args:
+      binary (lief.ELF.Binary): binary to be parsed.
+    Returns:
+      symhash (str): symhash of the binary.
+    """
+    symbol_list = []
+    for symbol in binary.imported_symbols:
+      n_type = symbol.raw_type
+      is_stab = n_type & self._N_STAB != 0
+      is_external = n_type & self._N_EXT == self._N_EXT
+      is_ntype = n_type & self._N_TYPE != 0
+      if symbol.origin == self._lief._lief.MachO.Symbol.ORIGIN.LC_SYMTAB and not is_stab and is_external and not is_ntype:
+        symbol_list.append(symbol.demangled_name)
+    hasher = self._md5.MD5Hasher()
+    hasher.Update(','.join(sorted(symbol_list)).encode())
+    symhash = hasher.GetStringDigest()
+    return symhash
+
+  def _ParseElfBinary(self, elf_fd, evidence, binary, result, file_name):
+    """Parses a ELF binary.
+    Args:
+      elf_fd (int): file descriptor to the binary.
+      evidence (Evidence object):  The evidence to process
+      binary (lief.MachO.Binary): binary to be parsed.
+      result (TurbiniaTaskResult): The object to place task results into.
+      filename (str): file name of the binary.
+    Returns:
+      ParsedBinary: the parsed binary details.
+    """
+    offset = 0
+    binary_size = binary.virtual_size
+    elf_fd.seek(offset)
+    data = elf_fd.read(binary_size)
+    hashes = Hashes()
+    hashes.md5 = self._GetDigest(self._md5.MD5Hasher(), data)
+    hashes.sha256 = self._GetDigest(self._sha256.SHA256Hasher(), data)
+    #hashes.symhash = self._GetSymhash(binary)
+    hashes.tlsh = self._tlsh.hash(data)
+    hashes.ssdeep = self._pyssdeep.get_hash_buffer(data)
+    parsed_binary = ParsedBinary(
+        hashes=hashes, segments=None, symbols=None, imports=None, flags=None)
+    parsed_binary.entropy = self._GetDigest(self._entropy.EntropyHasher(), data)
+    parsed_binary.size = binary_size
+    #parsed_binary.fat_offset = fat_offset
+    #parsed_binary.magic = hex(binary.header.magic.value)
+    #parsed_binary.segments = self._GetSegments(binary)
+    #parsed_binary.symbols = self._GetSymbols(binary)
+    #flags = []
+    #for flag in binary.header.flags_list:
+    #  flags.append(str(flag).split(".")[-1])
+    #parsed_binary.flags = flags
+    #imports = []
+    #for lib in binary.libraries:
+    #  imp = Import()
+    #  imp.name = lib.name
+    #  imp.size = hex(lib.size)
+    #  imp.offset = hex(lib.command_offset)
+    #  imports.append(imp)
+    #parsed_binary.imports = imports
+
+    #if binary.has_code_signature:
+    #  parsed_binary.signature = self._ParseCodeSignature(
+    #      binary.code_signature, result)
+    #result.log(f'ParsedBinary: {parsed_binary}')
+    return parsed_binary
+
   def _WriteParsedElfResults(self, file_name, parsed_elf, base_dir):
     """Outputs the parsed ELF results.
     Args:
@@ -229,6 +309,9 @@ class ElfAnalysisTask(TurbiniaTask):
           parsed_elf.source_path = file
           parsed_elf.source_type = "file"
           parsed_binaries += 1
+          parsed_binary = self._ParseElfBinary(
+                elf_fd, evidence, elf_binary, result, file)
+          parsed_elf.x86_64 = parsed_binary
           parsed_elf.architecture = architecture
           parsed_elf.processing_time = self._CurrentTimeMillis() - start_time
           self._WriteParsedElfResults(file, parsed_elf, base_dir)
