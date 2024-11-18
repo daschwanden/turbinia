@@ -30,6 +30,7 @@ class Section(object):
     self.type = ""
     self.virtual_address = 0
     self.file_offset = 0
+    self.flags = []
     self.size = 0
     self.entropy = 0
 
@@ -150,6 +151,8 @@ class ElfAnalysisTask(TurbiniaTask):
           section.file_offset = sect.file_offset
           section.size = sect.size
           section.entropy = abs(sect.entropy)
+          for flag in sect.flags_list:
+            section.flags.append(str(flag).split(".")[-1])
           sections.append(section)
     return sections
 
