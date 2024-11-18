@@ -23,6 +23,15 @@ class Hashes(object):
     self.ssdeep = ""
     self.tlsh = ""
 
+class Segment(object):
+
+  def __init__(self):
+    self.type = ""
+    self.flags = ""
+    self.file_offset = 0
+    self.virtual_size = 0
+    self.physical_size = 0
+    self.sections = ""
 
 class ParsedHeader(object):
 
@@ -48,7 +57,7 @@ class ParsedHeader(object):
 
 class ParsedElf(object):
 
-  def __init__(self, hashes: Hashes, header: ParsedHeader):
+  def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment]):
     self.request = ""
     self.evidence = ""
     self.file_name = ""
@@ -56,6 +65,7 @@ class ParsedElf(object):
     self.size = 0
     self.hashes = hashes
     self.header = header
+    self.segments = segments
 
 class ElfAnalysisTask(TurbiniaTask):
   """Task to analyse ELF Information"""
@@ -112,6 +122,37 @@ class ElfAnalysisTask(TurbiniaTask):
     hashes.ssdeep = self._pyssdeep.get_hash_buffer(data)
     return hashes
 
+  def _GetSegments(self, binary):
+    """Retrieves the segments of a ELF binary.
+    Args:
+      binary (lief.ELF.Binary): binary to extract the segments from.
+    Returns:
+      Segments: the extracted segments.
+    """
+    segments = []
+    sgmts = binary.segments
+    if len(sgmts) > 0:
+      #print(f_title.format("Type","Flags", "File offset", "Virtual Address", "Virtual Size", "Size", "Sections"))
+      for sgmt in sgmts:
+        segment = Segment()
+        sections = sgmt.sections
+        segment.sections = ", ".join([section.name for section in sections])
+        flags_str = ["-"] * 3
+        if self._lief.ELF.Segment.FLAGS.R in sgmt:
+          flags_str[0] = "r"
+        if self._lief.ELF.Segment.FLAGS.W in sgmt:
+          flags_str[1] = "w"
+        if self._lief.ELF.Segment.FLAGS.X in sgmt:
+          flags_str[2] = "x"
+        segment.flags = "".join(flags_str)
+        segment.type = str(sgmt.type).split(".")[-1]
+        segment.file_offset = sgmt.file_offset
+        segment.virtual_address = sgmt.virtual_address
+        segment.virtual_size = sgmt.virtual_size
+        segment.physical_size = sgmt.physical_size
+        segments.append(segment)
+    return segments
+  
   def _ParseHeader(self, header):
     """Parses a ELF binary.
     Args:
@@ -214,7 +255,8 @@ class ElfAnalysisTask(TurbiniaTask):
           parsed_binaries += 1
           hashes = self._GetHashes(elf_fd, elf_binary)
           header = self._ParseHeader(elf_binary.header)
-          parsed_elf = ParsedElf(hashes, header)
+          segments = self._GetSegments(elf_binary)
+          parsed_elf = ParsedElf(hashes, header, segments)
           parsed_elf.evidence = evidence.id
           parsed_elf.file_name = file
           parsed_elf.request = evidence.request_id
