@@ -23,15 +23,25 @@ class Hashes(object):
     self.ssdeep = ""
     self.tlsh = ""
 
-class Segment(object):
+class Section(object):
 
   def __init__(self):
+    self.name = ""
+    self.type = ""
+    self.virtual_address = 0
+    self.file_offset = 0
+    self.size = 0
+    self.entropy = 0
+
+class Segment(object):
+
+  def __init__(self, sections: List[Section]):
     self.type = ""
     self.flags = ""
     self.file_offset = 0
     self.virtual_size = 0
     self.physical_size = 0
-    self.sections = ""
+    self.sections = sections
 
 class ParsedHeader(object):
 
@@ -122,6 +132,27 @@ class ElfAnalysisTask(TurbiniaTask):
     hashes.ssdeep = self._pyssdeep.get_hash_buffer(data)
     return hashes
 
+  def _GetSections(self, segment):
+    """Retrieves the sections of a ELF binary segment.
+    Args:
+      segment (lief.ELF.Binary.Segment): segment to extract the sections from.
+    Returns:
+      Sections: the extracted sections.
+    """
+    sects = segment.sections
+    sections = []
+    if len(sects) > 0:
+        for sect in sects:
+          section = Section()
+          section.name = sect.name
+          section.type = str(sect.type).split(".")[-1]
+          section.virtual_address = sect.virtual_address
+          section.file_offset = sect.file_offset
+          section.size = sect.size
+          section.entropy = abs(sect.entropy)
+          sections.append(section)
+    return sections
+
   def _GetSegments(self, binary):
     """Retrieves the segments of a ELF binary.
     Args:
@@ -132,11 +163,8 @@ class ElfAnalysisTask(TurbiniaTask):
     segments = []
     sgmts = binary.segments
     if len(sgmts) > 0:
-      #print(f_title.format("Type","Flags", "File offset", "Virtual Address", "Virtual Size", "Size", "Sections"))
       for sgmt in sgmts:
-        segment = Segment()
-        sections = sgmt.sections
-        segment.sections = ", ".join([section.name for section in sections])
+        segment = Segment(self._GetSections(sgmt))
         flags_str = ["-"] * 3
         if self._lief.ELF.Segment.FLAGS.R in sgmt:
           flags_str[0] = "r"
