@@ -44,6 +44,16 @@ class Segment(object):
     self.physical_size = 0
     self.sections = sections
 
+class Symbol(object):
+
+  def __init__(self):
+    self.name = ""
+    self.type = ""
+    self.version = ""
+    self.value = ""
+    self.visibility = ""
+    self.binding = ""
+
 class ParsedHeader(object):
 
   def __init__(self):
@@ -68,7 +78,7 @@ class ParsedHeader(object):
 
 class ParsedElf(object):
 
-  def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment]):
+  def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment], imp_symbols: List[Symbol], exp_symbols: List[Symbol]):
     self.request = ""
     self.evidence = ""
     self.file_name = ""
@@ -77,6 +87,9 @@ class ParsedElf(object):
     self.hashes = hashes
     self.header = header
     self.segments = segments
+    self.imported_symbols = imp_symbols
+    self.exported_symbols = exp_symbols
+
 
 class ElfAnalysisTask(TurbiniaTask):
   """Task to analyse ELF Information"""
@@ -183,6 +196,26 @@ class ElfAnalysisTask(TurbiniaTask):
         segment.physical_size = sgmt.physical_size
         segments.append(segment)
     return segments
+
+  def _GetSymbols(self, symbols):
+    """Retrieves the symbols of a ELF binary.
+    Args:
+      symbols (lief.ELF.Binary.it_filter_symbols): symbols.
+    Returns:
+      Symbols: the extracted symbols.
+    """
+    symbls = []
+    if len(symbols) > 0:
+      for symbl in symbols:
+        symbol = Symbol()
+        symbol.name = symbl.name
+        symbol.type = str(symbl.type).split(".")[-1]
+        symbol.version = str(symbl.symbol_version) if symbl.has_version else ""
+        symbol.value = symbl.value
+        symbol.visibility = str(symbl.visibility).split(".")[-1]
+        symbol.binding = str(symbl.binding).split(".")[-1]
+        symbls.append(symbol)
+    return symbls
   
   def _ParseHeader(self, header):
     """Parses a ELF binary.
@@ -287,7 +320,9 @@ class ElfAnalysisTask(TurbiniaTask):
           hashes = self._GetHashes(elf_fd, elf_binary)
           header = self._ParseHeader(elf_binary.header)
           segments = self._GetSegments(elf_binary)
-          parsed_elf = ParsedElf(hashes, header, segments)
+          imp_symbols = self._GetSymbols(elf_binary.imported_symbols)
+          exp_symbols = self._GetSymbols(elf_binary.exported_symbols)
+          parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols)
           parsed_elf.evidence = evidence.id
           parsed_elf.file_name = file
           parsed_elf.request = evidence.request_id
