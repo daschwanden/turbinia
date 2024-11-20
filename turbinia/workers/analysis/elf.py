@@ -85,7 +85,7 @@ class ParsedElf(object):
     self.evidence = ""
     self.file_name = ""
     self.processing_time = 0
-    self.size = 0
+    self.virtual_size = 0
     self.hashes = hashes
     self.header = header
     self.segments = segments
@@ -331,6 +331,7 @@ class ElfAnalysisTask(TurbiniaTask):
           parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols, dyn_symbols, tab_symbols)
           parsed_elf.evidence = evidence.id
           parsed_elf.file_name = file
+          parsed_elf.virtual_size = elf_binary.virtual_size
           parsed_elf.request = evidence.request_id
           parsed_elf.processing_time = self._CurrentTimeMillis() - start_time
           self._WriteParsedElfResults(file, parsed_elf, base_dir)
