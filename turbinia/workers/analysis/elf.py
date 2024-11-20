@@ -78,7 +78,9 @@ class ParsedHeader(object):
 
 class ParsedElf(object):
 
-  def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment], imp_symbols: List[Symbol], exp_symbols: List[Symbol]):
+  def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment],
+               imp_symbols: List[Symbol], exp_symbols: List[Symbol],
+               dyn_symbols: List[Symbol], tab_symbols: List[Symbol]):
     self.request = ""
     self.evidence = ""
     self.file_name = ""
@@ -89,6 +91,8 @@ class ParsedElf(object):
     self.segments = segments
     self.imported_symbols = imp_symbols
     self.exported_symbols = exp_symbols
+    self.dynamic_symbols = dyn_symbols
+    self.symtab_symbols = tab_symbols
 
 
 class ElfAnalysisTask(TurbiniaTask):
@@ -322,7 +326,9 @@ class ElfAnalysisTask(TurbiniaTask):
           segments = self._GetSegments(elf_binary)
           imp_symbols = self._GetSymbols(elf_binary.imported_symbols)
           exp_symbols = self._GetSymbols(elf_binary.exported_symbols)
-          parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols)
+          dyn_symbols = self._GetSymbols(elf_binary.dynamic_symbols)
+          tab_symbols = self._GetSymbols(elf_binary.symtab_symbols)
+          parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols, dyn_symbols, tab_symbols)
           parsed_elf.evidence = evidence.id
           parsed_elf.file_name = file
           parsed_elf.request = evidence.request_id
