@@ -54,6 +54,11 @@ class Symbol(object):
     self.visibility = ""
     self.binding = ""
 
+class Library(object):
+
+  def __init__(self):
+    self.name = ""
+
 class ParsedHeader(object):
 
   def __init__(self):
@@ -80,7 +85,8 @@ class ParsedElf(object):
 
   def __init__(self, hashes: Hashes, header: ParsedHeader, segments: List[Segment],
                imp_symbols: List[Symbol], exp_symbols: List[Symbol],
-               dyn_symbols: List[Symbol], tab_symbols: List[Symbol]):
+               dyn_symbols: List[Symbol], tab_symbols: List[Symbol],
+               libaries: List[Library]):
     self.request = ""
     self.evidence = ""
     self.file_name = ""
@@ -93,6 +99,7 @@ class ParsedElf(object):
     self.exported_symbols = exp_symbols
     self.dynamic_symbols = dyn_symbols
     self.symtab_symbols = tab_symbols
+    self.libaries = libaries
 
 
 class ElfAnalysisTask(TurbiniaTask):
@@ -219,7 +226,23 @@ class ElfAnalysisTask(TurbiniaTask):
         symbol.visibility = str(symbl.visibility).split(".")[-1]
         symbol.binding = str(symbl.binding).split(".")[-1]
         symbls.append(symbol)
-    return symbls
+    return 
+    
+  def _GetLibraries(self, binary):
+    """Retrieves the shared libraries of a ELF binary.
+    Args:
+      binary (lief.ELF.Binary): binary to extract the libraries from.
+    Returns:
+      Libraries: the extracted segments.
+    """
+    libaries = []
+    # Get the list of shared libraries
+    shared_libs = binary.libraries
+    for shared_lib in shared_libs:
+      library = Library()
+      library.name = shared_lib
+      libaries.append(library)
+    return libaries
   
   def _ParseHeader(self, header):
     """Parses a ELF binary.
@@ -316,7 +339,7 @@ class ElfAnalysisTask(TurbiniaTask):
           elf_binary = self._lief.ELF.parse(elf_path)
           elf_fd = open(elf_path, 'rb')
         except IOError as e:
-          # 'Error opening ELF file: {0:s}'.format(str(e)))
+          result.log(f'Error opening ELF file: {str(e)}')
           break
 
         if isinstance(elf_binary, self._lief.ELF.Binary):
@@ -328,7 +351,8 @@ class ElfAnalysisTask(TurbiniaTask):
           exp_symbols = self._GetSymbols(elf_binary.exported_symbols)
           dyn_symbols = self._GetSymbols(elf_binary.dynamic_symbols)
           tab_symbols = self._GetSymbols(elf_binary.symtab_symbols)
-          parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols, dyn_symbols, tab_symbols)
+          libaries = self._GetLibraries(elf_binary)
+          parsed_elf = ParsedElf(hashes, header, segments, imp_symbols, exp_symbols, dyn_symbols, tab_symbols, libaries)
           parsed_elf.evidence = evidence.id
           parsed_elf.file_name = file
           parsed_elf.virtual_size = elf_binary.virtual_size
