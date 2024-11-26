@@ -1201,8 +1201,13 @@ class BinaryExtraction(CompressedDirectory):
   pass
 
 
+<<<<<<< HEAD
 class ElfExtraction(CompressedDirectory):
   """ELF details extracted from evidence."""
+=======
+class MachoExtraction(CompressedDirectory):
+  """Mach-O details extracted from evidence."""
+>>>>>>> master
   pass
 
 

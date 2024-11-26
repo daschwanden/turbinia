@@ -40,6 +40,7 @@ class TaskLoader():
       'BinaryExtractorTask',
       'BulkExtractorTask',
       'ContainerdEnumerationTask',
+      'ChromeCredsAnalysisTask',
       'DfdeweyTask',
       'DockerContainersEnumerationTask',
       'ElfAnalysisTask',
@@ -54,6 +55,7 @@ class TaskLoader():
       'LinuxAccountAnalysisTask',
       'LinuxSSHAnalysisTask',
       'LLMAnalyzerTask',
+      'MachoAnalysisTask',
       'YaraAnalysisTask',
       'PartitionEnumerationTask',
       'PhotorecTask',
@@ -101,11 +103,16 @@ class TaskLoader():
     #
     # Late imports to minimize what loads all Tasks
     from turbinia.workers.abort import AbortTask
+<<<<<<< HEAD
     from turbinia.workers.analysis.elf import ElfAnalysisTask
+=======
+    from turbinia.workers.analysis.chromecreds import ChromeCredsAnalysisTask
+>>>>>>> master
     from turbinia.workers.analysis.jenkins import JenkinsAnalysisTask
     from turbinia.workers.analysis.jupyter import JupyterAnalysisTask
     from turbinia.workers.analysis.linux_acct import LinuxAccountAnalysisTask
     from turbinia.workers.analysis.llm_analyzer import LLMAnalyzerTask
+    from turbinia.workers.analysis.macho import MachoAnalysisTask
     from turbinia.workers.analysis.postgresql_acct import PostgresAccountAnalysisTask
     from turbinia.workers.analysis.redis import RedisAnalysisTask
     from turbinia.workers.analysis.ssh_analyzer import LinuxSSHAnalysisTask
