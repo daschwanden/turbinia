@@ -226,7 +226,7 @@ class ElfAnalysisTask(TurbiniaTask):
         symbol.visibility = str(symbl.visibility).split(".")[-1]
         symbol.binding = str(symbl.binding).split(".")[-1]
         symbls.append(symbol)
-    return 
+    return symbls
     
   def _GetLibraries(self, binary):
     """Retrieves the shared libraries of a ELF binary.
